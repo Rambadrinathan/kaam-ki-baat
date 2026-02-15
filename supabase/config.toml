@@ -1,0 +1,16 @@
+project_id = "dvptythacjgersxgimru"
+
+[functions.transcribe]
+verify_jwt = false
+
+[functions.parse-plan]
+verify_jwt = false
+
+[functions.generate-score]
+verify_jwt = false
+
+[functions.captain-task-agent]
+verify_jwt = false
+
+[functions.text-to-speech]
+verify_jwt = false
