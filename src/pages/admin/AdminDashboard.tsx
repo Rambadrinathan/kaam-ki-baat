@@ -14,6 +14,7 @@ import { Loader2, Users, Building2, UserCheck, FileText, TrendingUp, Calendar, S
 import { format, subDays, parseISO } from 'date-fns';
 import { Button } from '@/components/ui/button';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, LineChart, Line, Legend } from 'recharts';
+import { TeamMemberWithStats } from '@/types';
 
 interface Submission {
   id: string;
@@ -36,13 +37,6 @@ interface Team {
   member_count: number;
   submission_count: number;
   avg_score: number;
-}
-
-interface TeamMember {
-  user_id: string;
-  name: string;
-  role: string;
-  submission_count: number;
 }
 
 interface WorkLog {
@@ -86,7 +80,7 @@ export default function AdminDashboard() {
 
   // Team drill-down state
   const [selectedTeamForDrilldown, setSelectedTeamForDrilldown] = useState<Team | null>(null);
-  const [teamMembers, setTeamMembers] = useState<TeamMember[]>([]);
+  const [teamMembers, setTeamMembers] = useState<TeamMemberWithStats[]>([]);
   const [teamWorkLogs, setTeamWorkLogs] = useState<WorkLog[]>([]);
   const [teamSubmissions, setTeamSubmissions] = useState<Submission[]>([]);
   const [drilldownLoading, setDrilldownLoading] = useState(false);
@@ -317,7 +311,7 @@ export default function AdminDashboard() {
         .select('task_assignment_id')
         .in('task_assignment_id', assignmentIds);
 
-      const members: TeamMember[] = (memberships || []).map(m => {
+      const members: TeamMemberWithStats[] = (memberships || []).map(m => {
         const profile = memberProfiles?.find(p => p.user_id === m.user_id);
         const memberAssignments = assignments?.filter(a => a.assigned_to_user_id === m.user_id).map(a => a.id) || [];
         const submissionCount = scores?.filter(s => memberAssignments.includes(s.task_assignment_id)).length || 0;

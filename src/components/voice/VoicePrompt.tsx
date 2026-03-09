@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
@@ -9,6 +9,7 @@ import { languageNames, Language } from '@/utils/i18n';
 import { cn } from '@/lib/utils';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
+import { useAudioRecording } from '@/hooks/useAudioRecording';
 
 type FlowState = 'initial' | 'recording' | 'processing' | 'parsing' | 'review' | 'submitting' | 'submitted';
 
@@ -26,55 +27,23 @@ export default function VoicePrompt() {
   const { toast } = useToast();
   
   const [flowState, setFlowState] = useState<FlowState>('initial');
-  const [recordingTime, setRecordingTime] = useState(0);
   const [transcription, setTranscription] = useState('');
   const [parsedPlan, setParsedPlan] = useState<ParsedPlan | null>(null);
   const [isEditing, setIsEditing] = useState(false);
 
-  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
-  const audioChunksRef = useRef<Blob[]>([]);
-  const timerRef = useRef<NodeJS.Timeout | null>(null);
+  const processRecordingRef = useRef<(blob: Blob) => void>(() => {});
 
-  useEffect(() => {
-    return () => {
-      if (timerRef.current) {
-        clearInterval(timerRef.current);
-      }
-    };
-  }, []);
+  const { isRecording, recordingTime, startRecording: startRec, stopRecording: stopRec, formatTime } = useAudioRecording({
+    onRecordingComplete: (blob: Blob) => {
+      setFlowState('processing');
+      processRecordingRef.current(blob);
+    },
+  });
 
-  const startRecording = async () => {
+  const handleStartRecording = async () => {
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({
-        audio: {
-          echoCancellation: true,
-          noiseSuppression: true,
-          autoGainControl: true,
-        },
-      });
-
-      mediaRecorderRef.current = new MediaRecorder(stream);
-      audioChunksRef.current = [];
-
-      mediaRecorderRef.current.ondataavailable = (event) => {
-        if (event.data.size > 0) {
-          audioChunksRef.current.push(event.data);
-        }
-      };
-
-      mediaRecorderRef.current.onstop = async () => {
-        const blob = new Blob(audioChunksRef.current, { type: 'audio/webm' });
-        stream.getTracks().forEach((track) => track.stop());
-        await processRecording(blob);
-      };
-
-      mediaRecorderRef.current.start();
+      await startRec();
       setFlowState('recording');
-      setRecordingTime(0);
-
-      timerRef.current = setInterval(() => {
-        setRecordingTime((prev) => prev + 1);
-      }, 1000);
     } catch (error) {
       console.error('Error accessing microphone:', error);
       toast({
@@ -85,14 +54,10 @@ export default function VoicePrompt() {
     }
   };
 
-  const stopRecording = () => {
-    if (mediaRecorderRef.current && flowState === 'recording') {
-      mediaRecorderRef.current.stop();
-      setFlowState('processing');
-
-      if (timerRef.current) {
-        clearInterval(timerRef.current);
-      }
+  const handleStopRecording = () => {
+    if (isRecording) {
+      stopRec();
+      // flowState will be set to 'processing' in onRecordingComplete callback
     }
   };
 
@@ -180,6 +145,9 @@ export default function VoicePrompt() {
     };
   };
 
+  // Keep ref in sync so the onRecordingComplete callback can call it
+  processRecordingRef.current = processRecording;
+
   const handleSubmitPlan = async () => {
     if (!user || !transcription.trim()) return;
 
@@ -254,12 +222,6 @@ export default function VoicePrompt() {
     setIsEditing(false);
   };
 
-  const formatTime = (seconds: number) => {
-    const mins = Math.floor(seconds / 60);
-    const secs = seconds % 60;
-    return `${mins}:${secs.toString().padStart(2, '0')}`;
-  };
-
   const getSlotLabel = (slots: number) => {
     const hours = slots * 2;
     if (language === 'hi') return `~${hours} घंटे`;
@@ -302,7 +264,7 @@ export default function VoicePrompt() {
           <Button
             size="lg"
             className="h-32 w-32 rounded-full shadow-lg transition-all"
-            onClick={startRecording}
+            onClick={handleStartRecording}
           >
             <Mic className="h-12 w-12" />
           </Button>
@@ -341,7 +303,7 @@ export default function VoicePrompt() {
               size="lg"
               variant="destructive"
               className="h-32 w-32 rounded-full shadow-lg animate-pulse scale-110"
-              onClick={stopRecording}
+              onClick={handleStopRecording}
             >
               <Square className="h-12 w-12" />
             </Button>

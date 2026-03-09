@@ -10,11 +10,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { Loader2, ArrowLeft, Mic, Check, RotateCcw, Volume2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
-
-interface TeamMember {
-  user_id: string;
-  name: string;
-}
+import { TeamMember } from '@/types';
 
 interface ConversationMessage {
   role: 'user' | 'ai';

@@ -13,17 +13,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { Loader2, ArrowLeft, UserPlus, Users, Crown, Star, Trash2, Clock, Copy, Check } from 'lucide-react';
-
-interface TeamMember {
-  id: string;
-  user_id: string;
-  role: 'captain' | 'vice_captain' | 'member';
-  status: 'active' | 'inactive';
-  profiles: {
-    name: string;
-    phone: string | null;
-  };
-}
+import { TeamMembership } from '@/types';
 
 interface PendingInvitation {
   id: string;
@@ -51,7 +41,7 @@ export default function TeamManagement() {
   const { toast } = useToast();
   
   const [team, setTeam] = useState<Team | null>(null);
-  const [members, setMembers] = useState<TeamMember[]>([]);
+  const [members, setMembers] = useState<TeamMembership[]>([]);
   const [pendingInvitations, setPendingInvitations] = useState<PendingInvitation[]>([]);
   const [loading, setLoading] = useState(true);
   const [addDialogOpen, setAddDialogOpen] = useState(false);
@@ -103,7 +93,7 @@ export default function TeamManagement() {
           return {
             ...member,
             profiles: profile || { name: 'Unknown', phone: null }
-          } as TeamMember;
+          } as TeamMembership;
         })
       );
 

@@ -3,6 +3,7 @@ import { Button } from '@/components/ui/button';
 import { Mic, Square, Loader2, Play, Pause } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useLanguage } from '@/hooks/useLanguage';
+import { useAudioRecording } from '@/hooks/useAudioRecording';
 
 interface VoiceRecorderProps {
   onRecordingComplete: (audioBlob: Blob, transcription: string) => void;
@@ -11,91 +12,49 @@ interface VoiceRecorderProps {
   language?: string;
 }
 
-export default function VoiceRecorder({ 
-  onRecordingComplete, 
+export default function VoiceRecorder({
+  onRecordingComplete,
   isTranscribing = false,
   className,
   language = 'en'
 }: VoiceRecorderProps) {
-  const [isRecording, setIsRecording] = useState(false);
-  const [recordingTime, setRecordingTime] = useState(0);
   const [audioBlob, setAudioBlob] = useState<Blob | null>(null);
   const [isPlaying, setIsPlaying] = useState(false);
   const { t } = useLanguage();
-  
-  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
-  const audioChunksRef = useRef<Blob[]>([]);
-  const timerRef = useRef<NodeJS.Timeout | null>(null);
+
   const audioRef = useRef<HTMLAudioElement | null>(null);
+
+  const { isRecording, recordingTime, startRecording, stopRecording, formatTime } = useAudioRecording({
+    onRecordingComplete: (blob) => {
+      setAudioBlob(blob);
+    },
+  });
 
   useEffect(() => {
     return () => {
-      if (timerRef.current) {
-        clearInterval(timerRef.current);
-      }
       if (audioRef.current) {
         audioRef.current.pause();
       }
     };
   }, []);
 
-  const startRecording = async () => {
+  const handleStartRecording = async () => {
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({ 
-        audio: {
-          echoCancellation: true,
-          noiseSuppression: true,
-          autoGainControl: true
-        }
-      });
-      
-      mediaRecorderRef.current = new MediaRecorder(stream);
-      audioChunksRef.current = [];
-      
-      mediaRecorderRef.current.ondataavailable = (event) => {
-        if (event.data.size > 0) {
-          audioChunksRef.current.push(event.data);
-        }
-      };
-      
-      mediaRecorderRef.current.onstop = () => {
-        const blob = new Blob(audioChunksRef.current, { type: 'audio/webm' });
-        setAudioBlob(blob);
-        stream.getTracks().forEach(track => track.stop());
-      };
-      
-      mediaRecorderRef.current.start();
-      setIsRecording(true);
-      setRecordingTime(0);
-      
-      timerRef.current = setInterval(() => {
-        setRecordingTime(prev => prev + 1);
-      }, 1000);
+      await startRecording();
     } catch (error) {
       console.error('Error accessing microphone:', error);
     }
   };
 
-  const stopRecording = () => {
-    if (mediaRecorderRef.current && isRecording) {
-      mediaRecorderRef.current.stop();
-      setIsRecording(false);
-      
-      if (timerRef.current) {
-        clearInterval(timerRef.current);
-      }
-    }
-  };
-
   const transcribeAndSubmit = async () => {
     if (!audioBlob) return;
-    
+
     // Convert blob to base64
     const reader = new FileReader();
     reader.readAsDataURL(audioBlob);
     reader.onloadend = async () => {
       const base64Audio = (reader.result as string).split(',')[1];
-      
+
       try {
         const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/transcribe`, {
           method: 'POST',
@@ -105,9 +64,9 @@ export default function VoiceRecorder({
           },
           body: JSON.stringify({ audio: base64Audio, language })
         });
-        
+
         const data = await response.json();
-        
+
         if (data.error) {
           console.error('Transcription error:', data.error);
           onRecordingComplete(audioBlob, '');
@@ -123,11 +82,11 @@ export default function VoiceRecorder({
 
   const playAudio = () => {
     if (!audioBlob) return;
-    
+
     if (audioRef.current) {
       audioRef.current.pause();
     }
-    
+
     audioRef.current = new Audio(URL.createObjectURL(audioBlob));
     audioRef.current.onended = () => setIsPlaying(false);
     audioRef.current.play();
@@ -143,16 +102,9 @@ export default function VoiceRecorder({
 
   const resetRecording = () => {
     setAudioBlob(null);
-    setRecordingTime(0);
     if (audioRef.current) {
       audioRef.current.pause();
     }
-  };
-
-  const formatTime = (seconds: number) => {
-    const mins = Math.floor(seconds / 60);
-    const secs = seconds % 60;
-    return `${mins}:${secs.toString().padStart(2, '0')}`;
   };
 
   return (
@@ -168,7 +120,7 @@ export default function VoiceRecorder({
                 "h-20 w-20 rounded-full",
                 isRecording && "animate-pulse"
               )}
-              onClick={isRecording ? stopRecording : startRecording}
+              onClick={isRecording ? stopRecording : handleStartRecording}
             >
               {isRecording ? (
                 <Square className="h-8 w-8" />
@@ -206,7 +158,7 @@ export default function VoiceRecorder({
               {formatTime(recordingTime)} {t.recorded}
             </span>
           </div>
-          
+
           <div className="flex gap-3">
             <Button
               type="button"
