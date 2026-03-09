@@ -1,9 +1,5 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
-
-const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-};
+import { CORS_HEADERS as corsHeaders } from '../_shared/gemini-client.ts';
 
 // Detect language from text using Unicode character ranges
 function detectLanguage(text: string): 'bn-IN' | 'hi-IN' | 'en-IN' {

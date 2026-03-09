@@ -1,10 +1,6 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.49.2';
-
-const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-};
+import { CORS_HEADERS as corsHeaders, callGemini } from '../_shared/gemini-client.ts';
 
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
@@ -70,29 +66,12 @@ ${workLogSummary || 'No updates'}
 Provide a score 0-10 and brief summary. Return JSON:
 {"summary": "Brief summary", "score": 7, "reasoning": "Brief reasoning"}`;
 
-    const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${GEMINI_API_KEY}`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        systemInstruction: {
-          parts: [{ text: "You are an AI work evaluator. Respond with valid JSON only." }]
-        },
-        contents: [
-          {
-            role: "user",
-            parts: [{ text: prompt }]
-          }
-        ],
-      }),
-    });
-
-    if (!response.ok) {
-      throw new Error(`Gemini API error: ${response.status}`);
-    }
-
-    const aiData = await response.json();
+    const aiData = await callGemini(
+      'gemini-2.5-flash',
+      GEMINI_API_KEY,
+      [{ role: 'user', parts: [{ text: prompt }] }],
+      { systemInstruction: { parts: [{ text: 'You are an AI work evaluator. Respond with valid JSON only.' }] } }
+    );
     const aiContent = aiData.candidates?.[0]?.content?.parts?.[0]?.text || '';
 
     let score = 5;

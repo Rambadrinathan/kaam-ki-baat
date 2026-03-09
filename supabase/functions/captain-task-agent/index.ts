@@ -1,10 +1,6 @@
 import "https://deno.land/x/xhr@0.1.0/mod.ts";
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
-
-const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-};
+import { CORS_HEADERS as corsHeaders, callGeminiRaw } from '../_shared/gemini-client.ts';
 
 interface ConversationMessage {
   role: 'user' | 'ai';
@@ -226,26 +222,15 @@ Output: {"type":"confirmed","text":"✓ Task created!","detectedLanguage":"en","
 
     console.log('Calling AI with locked language:', lang);
 
-    const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${GEMINI_API_KEY}`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        systemInstruction: {
-          parts: [{ text: systemPrompt }]
-        },
-        contents: [
-          {
-            role: 'user',
-            parts: [{ text: userMessage }]
-          }
-        ],
-        generationConfig: {
-          temperature: 0.3,
-        },
-      }),
-    });
+    const response = await callGeminiRaw(
+      'gemini-2.5-flash',
+      GEMINI_API_KEY,
+      [{ role: 'user', parts: [{ text: userMessage }] }],
+      {
+        systemInstruction: { parts: [{ text: systemPrompt }] },
+        generationConfig: { temperature: 0.3 },
+      }
+    );
 
     if (!response.ok) {
       const errorText = await response.text();

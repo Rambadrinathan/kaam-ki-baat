@@ -1,9 +1,5 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
-
-const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-};
+import { CORS_HEADERS as corsHeaders, callGeminiRaw } from '../_shared/gemini-client.ts';
 
 interface ParsedPlan {
   title: string;
@@ -56,23 +52,12 @@ Respond ONLY with valid JSON in this exact format:
   "confidence": 0.85
 }`;
 
-    const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${GEMINI_API_KEY}`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        systemInstruction: {
-          parts: [{ text: systemPrompt }]
-        },
-        contents: [
-          {
-            role: 'user',
-            parts: [{ text: `Parse this work plan (language: ${language}):\n\n"${transcription}"` }]
-          }
-        ],
-      }),
-    });
+    const response = await callGeminiRaw(
+      'gemini-2.5-flash',
+      GEMINI_API_KEY,
+      [{ role: 'user', parts: [{ text: `Parse this work plan (language: ${language}):\n\n"${transcription}"` }] }],
+      { systemInstruction: { parts: [{ text: systemPrompt }] } }
+    );
 
     if (!response.ok) {
       const errorText = await response.text();

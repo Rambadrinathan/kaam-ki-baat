@@ -1,9 +1,5 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
-
-const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-};
+import { CORS_HEADERS as corsHeaders, callGeminiRaw } from '../_shared/gemini-client.ts';
 
 // Stricter prompt that FORCES output in the specified language when locked
 const getSystemPrompt = (language: string) => {
@@ -63,31 +59,18 @@ serve(async (req) => {
 
     const systemPrompt = getSystemPrompt(language);
 
-    const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${GEMINI_API_KEY}`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        systemInstruction: {
-          parts: [{ text: systemPrompt }]
-        },
-        contents: [
-          {
-            role: "user",
-            parts: [
-              { text: "Transcribe this audio recording of a worker describing their work plan:" },
-              {
-                inlineData: {
-                  mimeType: "audio/webm",
-                  data: audio
-                }
-              }
-            ]
-          }
-        ],
-      }),
-    });
+    const response = await callGeminiRaw(
+      'gemini-2.5-flash',
+      GEMINI_API_KEY,
+      [{
+        role: 'user',
+        parts: [
+          { text: 'Transcribe this audio recording of a worker describing their work plan:' },
+          { inlineData: { mimeType: 'audio/webm', data: audio } }
+        ]
+      }],
+      { systemInstruction: { parts: [{ text: systemPrompt }] } }
+    );
 
     if (!response.ok) {
       const errorText = await response.text();
