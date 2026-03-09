@@ -99,11 +99,17 @@ export default function AdminDashboard() {
 
   const fetchAllData = async () => {
     setLoading(true);
-    await Promise.all([fetchStats(), fetchTeams(), fetchSubmissions()]);
-    setLoading(false);
+    try {
+      await Promise.all([fetchStats(), fetchTeams(), fetchSubmissions()]);
+    } catch (err) {
+      console.error('Failed to fetch dashboard data:', err);
+    } finally {
+      setLoading(false);
+    }
   };
 
   const fetchStats = async () => {
+    try {
     const [teamsResult, membershipsResult, scoresResult] = await Promise.all([
       supabase.from('teams').select('id', { count: 'exact', head: true }),
       supabase.from('team_memberships').select('id, role', { count: 'exact' }).eq('status', 'active'),
@@ -131,9 +137,13 @@ export default function AdminDashboard() {
       totalSubmissions,
       avgScore: Math.round(avgScore * 10) / 10
     });
+    } catch (err) {
+      console.error('Failed to fetch stats:', err);
+    }
   };
 
   const fetchTeams = async () => {
+    try {
     const { data: teamsData } = await supabase
       .from('teams')
       .select('id, name')
@@ -198,9 +208,13 @@ export default function AdminDashboard() {
     });
 
     setTeams(enrichedTeams);
+    } catch (err) {
+      console.error('Failed to fetch teams:', err);
+    }
   };
 
   const fetchSubmissions = async () => {
+    try {
     const { data: scores } = await supabase
       .from('daily_scores')
       .select('id, date, auto_score, final_score, summary_text, validated_by_user_id, task_assignment_id')
@@ -269,6 +283,9 @@ export default function AdminDashboard() {
     });
 
     setSubmissions(enrichedSubmissions);
+    } catch (err) {
+      console.error('Failed to fetch submissions:', err);
+    }
   };
 
   // Team drill-down

@@ -153,7 +153,7 @@ export default function CreateTask() {
 
   // Pause listening temporarily (during TTS) without closing the stream
   const pauseListening = useCallback(() => {
-    console.log('Pausing VAD - AI is speaking');
+    console.debug('Pausing VAD - AI is speaking');
     isListeningRef.current = false;
     
     // Cancel VAD animation frame
@@ -183,7 +183,7 @@ export default function CreateTask() {
   // Start continuous listening with VAD
   const startContinuousListening = useCallback(async () => {
     try {
-      console.log('Starting continuous listening...');
+      console.debug('Starting continuous listening...');
       
       const stream = await navigator.mediaDevices.getUserMedia({ 
         audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true }
@@ -252,7 +252,7 @@ export default function CreateTask() {
         
         // Start recording if not already
         if (mediaRecorderRef.current?.state === 'inactive') {
-          console.log('Voice detected, starting recording...');
+          console.debug('Voice detected, starting recording...');
           mediaRecorderRef.current.start();
         }
         
@@ -268,7 +268,7 @@ export default function CreateTask() {
           silenceTimerRef.current = setTimeout(() => {
             // 2 seconds of silence - stop recording and process
             if (mediaRecorderRef.current?.state === 'recording') {
-              console.log('2s silence detected, processing...');
+              console.debug('2s silence detected, processing...');
               setFlowState('processing');
               mediaRecorderRef.current.stop();
             }
@@ -320,68 +320,71 @@ export default function CreateTask() {
 
   // Text-to-speech function - returns Promise that resolves when audio finishes
   const speakText = async (text: string, forcedLanguage?: 'hi' | 'bn' | 'en' | null): Promise<void> => {
-    return new Promise(async (resolve) => {
-      try {
-        setIsSpeaking(true);
-        console.log('Requesting TTS for:', text.substring(0, 50), 'language:', forcedLanguage);
-        
-        const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/text-to-speech`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`
-          },
-          body: JSON.stringify({ text, language: forcedLanguage })
-        });
+    try {
+      setIsSpeaking(true);
+      console.debug('Requesting TTS for:', text.substring(0, 50), 'language:', forcedLanguage);
 
-        if (!response.ok) {
-          const errorData = await response.json();
-          console.error('TTS error:', errorData);
-          setIsSpeaking(false);
-          resolve();
-          return;
-        }
+      const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/text-to-speech`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`
+        },
+        body: JSON.stringify({ text, language: forcedLanguage })
+      });
 
-        const data = await response.json();
-        
-        if (data.audioContent) {
-          const base64 = data.audioContent;
-          const binaryString = atob(base64);
-          const len = binaryString.length;
-          const bytes = new Uint8Array(len);
-          for (let i = 0; i < len; i++) {
-            bytes[i] = binaryString.charCodeAt(i);
-          }
-          
-          const audioBlob = new Blob([bytes], { type: 'audio/mpeg' });
-          const audioUrl = URL.createObjectURL(audioBlob);
-          
-          if (audioRef.current) {
-            audioRef.current.pause();
-          }
-          
-          audioRef.current = new Audio(audioUrl);
-          audioRef.current.onended = () => {
-            setIsSpeaking(false);
-            URL.revokeObjectURL(audioUrl);
-            resolve();
-          };
-          audioRef.current.onerror = () => {
-            setIsSpeaking(false);
-            URL.revokeObjectURL(audioUrl);
-            resolve();
-          };
-          await audioRef.current.play();
-        } else {
-          setIsSpeaking(false);
-          resolve();
-        }
-      } catch (error) {
-        console.error('TTS playback error:', error);
+      if (!response.ok) {
+        const errorData = await response.json();
+        console.error('TTS error:', errorData);
         setIsSpeaking(false);
-        resolve();
+        return;
       }
-    });
+
+      const data = await response.json();
+
+      if (data.audioContent) {
+        const base64 = data.audioContent;
+        const binaryString = atob(base64);
+        const len = binaryString.length;
+        const bytes = new Uint8Array(len);
+        for (let i = 0; i < len; i++) {
+          bytes[i] = binaryString.charCodeAt(i);
+        }
+
+        const audioBlob = new Blob([bytes], { type: 'audio/mpeg' });
+        const audioUrl = URL.createObjectURL(audioBlob);
+
+        if (audioRef.current) {
+          audioRef.current.pause();
+        }
+
+        audioRef.current = new Audio(audioUrl);
+
+        // Wait for audio to finish playing via a properly constructed Promise
+        await new Promise<void>((resolve) => {
+          audioRef.current!.onended = () => {
+            setIsSpeaking(false);
+            URL.revokeObjectURL(audioUrl);
+            resolve();
+          };
+          audioRef.current!.onerror = () => {
+            setIsSpeaking(false);
+            URL.revokeObjectURL(audioUrl);
+            resolve();
+          };
+          audioRef.current!.play().catch(() => {
+            setIsSpeaking(false);
+            URL.revokeObjectURL(audioUrl);
+            resolve();
+          });
+        });
+      } else {
+        setIsSpeaking(false);
+      }
+    } catch (error) {
+      console.error('TTS playback error:', error);
+      setIsSpeaking(false);
+    }
   };
 
   const fetchTeamMembers = async (teamId: string) => {
@@ -400,7 +403,7 @@ export default function CreateTask() {
     // CRITICAL: Update BOTH ref (immediate) and state (UI)
     teamMembersRef.current = members;
     setTeamMembers(members);
-    console.log('Team members loaded:', members.length, members.map(m => m.name));
+    console.debug('Team members loaded:', members.length, members.map(m => m.name));
   };
 
   const handleTeamSelect = async (teamId: string, teamName: string) => {
@@ -438,7 +441,7 @@ export default function CreateTask() {
       try {
         // Pass locked language to transcribe - default to Bengali
         const languageForTranscription = lockedLanguageRef.current || 'bn';
-        console.log('Transcribing with language:', languageForTranscription);
+        console.debug('Transcribing with language:', languageForTranscription);
         
         const transcribeResponse = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/transcribe`, {
           method: 'POST',
@@ -471,7 +474,7 @@ export default function CreateTask() {
           currentLanguage = detectLanguage(transcription);
           lockedLanguageRef.current = currentLanguage;  // Ref updates immediately!
           setLockedLanguage(currentLanguage);  // State for UI
-          console.log('Language locked to:', currentLanguage);
+          console.debug('Language locked to:', currentLanguage);
         }
         
         // Process with AI agent - PASS THE CURRENT LANGUAGE DIRECTLY
@@ -495,14 +498,14 @@ export default function CreateTask() {
       // Use refs for immediate access to last response
       const lastResponse = lastAgentResponseRef.current;
       
-      console.log('Sending to agent:', {
+      console.debug('Sending to agent:', {
         transcription,
         lockedLanguage: currentLanguage,
         lastResponseType: lastResponse?.type
       });
-      
+
       // Use REF for team members (state might not be updated yet)
-      console.log('Sending team members from ref:', teamMembersRef.current.length);
+      console.debug('Sending team members from ref:', teamMembersRef.current.length);
       
       const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/captain-task-agent`, {
         method: 'POST',
@@ -527,7 +530,7 @@ export default function CreateTask() {
       }
       
       const data = await response.json();
-      console.log('Agent response:', {
+      console.debug('Agent response:', {
         type: data.type,
         textPreview: data.text?.substring(0, 80),
         hasTaskDraft: !!data.taskDraft,
